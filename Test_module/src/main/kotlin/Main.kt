@@ -1,5 +1,8 @@
 package org.example
 
+import org.example.bot.BotHandler
+
 fun main() {
-    println("Food Bot is running!")
+    val botHandler = BotHandler()
+    botHandler.start()
 }

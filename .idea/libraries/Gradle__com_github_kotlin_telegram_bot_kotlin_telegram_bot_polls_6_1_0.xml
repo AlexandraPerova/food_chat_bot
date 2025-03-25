@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: com.github.kotlin-telegram-bot.kotlin-telegram-bot:polls:6.1.0" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="com.github.kotlin-telegram-bot.kotlin-telegram-bot" artifactId="polls" version="6.1.0" baseVersion="6.1.0" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.kotlin-telegram-bot.kotlin-telegram-bot/polls/6.1.0/2fe4816274ccc40cd60cf5093df029603b3fba91/polls-6.1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

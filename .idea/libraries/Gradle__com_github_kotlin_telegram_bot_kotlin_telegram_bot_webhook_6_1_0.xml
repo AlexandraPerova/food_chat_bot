@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: com.github.kotlin-telegram-bot.kotlin-telegram-bot:webhook:6.1.0" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="com.github.kotlin-telegram-bot.kotlin-telegram-bot" artifactId="webhook" version="6.1.0" baseVersion="6.1.0" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.kotlin-telegram-bot.kotlin-telegram-bot/webhook/6.1.0/d8c5b2c669f9bf0a663433816bc0490bf3ba9e58/webhook-6.1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

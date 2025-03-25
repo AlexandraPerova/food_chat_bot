@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: com.github.kotlin-telegram-bot.kotlin-telegram-bot:kotlin-telegram-bot:6.1.0" type="java-imported" external-system-id="GRADLE">
+    <properties groupId="com.github.kotlin-telegram-bot.kotlin-telegram-bot" artifactId="kotlin-telegram-bot" version="6.1.0" baseVersion="6.1.0" />
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.kotlin-telegram-bot.kotlin-telegram-bot/kotlin-telegram-bot/6.1.0/96e0687aac6e19bc985f1e2c5d9d87816868f908/kotlin-telegram-bot-6.1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
