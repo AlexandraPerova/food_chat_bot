@@ -2,7 +2,7 @@ package org.example.bot
 
 import com.github.kotlintelegrambot.Bot
 import com.github.kotlintelegrambot.entities.ChatId
-import com.github.kotlintelegrambot.entities.Message
+import com.github.kotlintelegrambot.entities.ParseMode
 import com.github.kotlintelegrambot.entities.keyboard.KeyboardButton
 import com.github.kotlintelegrambot.entities.KeyboardReplyMarkup
 import org.example.model.Recipe
@@ -12,26 +12,19 @@ object MenuHandler {
 
     private var isAddingRecipe = false
     private var isEditingRecipe = false
-    private var currentRecipeName: String? = null
-    private var currentRecipeIngredients: MutableList<String> = mutableListOf()
-    private var currentRecipeInstructions: MutableList<String> = mutableListOf()
-    private var currentRecipeImageUrl: String? = null
-    private var currentEditingRecipe: Recipe? = null
+    private var currentRecipe: Recipe? = null
+    private var step = 0
 
     fun showMainMenu(bot: Bot, chatId: Long) {
         val menuItems = listOf(
-            "1. Показать все рецепты",
-            "2. Поиск нужного рецепта",
-            "3. Добавление нового рецепта",
-            "4. Изменить рецепт"
+            "Показать все рецепты",
+            "Поиск рецепта",
+            "Добавить рецепт",
+            "Изменить рецепт"
         )
 
-        val keyboardButtons = menuItems.map { menuItem ->
-            KeyboardButton(menuItem)
-        }.chunked(1)
-
         val keyboardMarkup = KeyboardReplyMarkup(
-            keyboard = keyboardButtons,
+            keyboard = menuItems.map { listOf(KeyboardButton(it)) },
             resizeKeyboard = true
         )
 
@@ -42,15 +35,39 @@ object MenuHandler {
         )
     }
 
-    // Функция для отображения всех рецептов как кнопок
-    fun showAllRecipes(bot: Bot, chatId: Long) {
+    fun handleMenuSelection(bot: Bot, chatId: Long, text: String) {
+        when (text) {
+            "Показать все рецепты" -> showAllRecipes(bot, chatId)
+            "Поиск рецепта" -> {
+                bot.sendMessage(ChatId.fromId(chatId), "Введите название рецепта для поиска:")
+                isEditingRecipe = false
+            }
+            "Добавить рецепт" -> {
+                isAddingRecipe = true
+                step = 1
+                bot.sendMessage(ChatId.fromId(chatId), "Введите название рецепта:")
+            }
+            "Изменить рецепт" -> {
+                isEditingRecipe = true
+                bot.sendMessage(ChatId.fromId(chatId), "Введите название рецепта, который хотите изменить:")
+            }
+            "Назад в меню" -> {
+                resetState()
+                showMainMenu(bot, chatId)
+            }
+            else -> handleRecipeActions(bot, chatId, text)
+        }
+    }
+
+    private fun showAllRecipes(bot: Bot, chatId: Long) {
         val recipes = RecipeStorage.getRecipes()
-        val recipeButtons = recipes.map { recipe ->
-            KeyboardButton(recipe.name)
-        }.chunked(1)  // Кнопки по одной в ряд
+        if (recipes.isEmpty()) {
+            bot.sendMessage(ChatId.fromId(chatId), "Рецепты отсутствуют.")
+            return
+        }
 
         val keyboardMarkup = KeyboardReplyMarkup(
-            keyboard = recipeButtons,
+            keyboard = recipes.map { listOf(KeyboardButton(it.name)) },
             resizeKeyboard = true
         )
 
@@ -61,230 +78,109 @@ object MenuHandler {
         )
     }
 
-    // Обработка выбора рецепта
-    fun handleMenuSelection(bot: Bot, chatId: Long, text: String) {
+    private fun handleRecipeActions(bot: Bot, chatId: Long, text: String) {
         when {
-            text.startsWith("1. Показать все рецепты") -> {
-                val recipes = RecipeStorage.getRecipes()
-                val recipeList = recipes.joinToString("\n") { it.name }
-                val buttons = recipes.map { recipe ->
-                    KeyboardButton(recipe.name)
-                }.chunked(1)
+            isAddingRecipe -> handleRecipeAdding(bot, chatId, text)
+            isEditingRecipe -> handleRecipeEditing(bot, chatId, text)
+            else -> showRecipeDetails(bot, chatId, text)
+        }
+    }
 
-                val keyboardMarkup = KeyboardReplyMarkup(
-                    keyboard = buttons,
-                    resizeKeyboard = true
-                )
-
-                bot.sendMessage(
-                    chatId = ChatId.fromId(chatId),
-                    text = "Список всех рецептов:\n$recipeList",
-                    replyMarkup = keyboardMarkup
-                )
+    private fun handleRecipeAdding(bot: Bot, chatId: Long, text: String) {
+        when (step) {
+            1 -> {
+                currentRecipe = Recipe(name = text, ingredients = mutableListOf(), instructions = mutableListOf(), imageUrl = null)
+                step++
+                bot.sendMessage(ChatId.fromId(chatId), "Введите ингредиенты (через запятую):")
             }
-
-            text.startsWith("2. Поиск нужного рецепта") -> {
-                bot.sendMessage(
-                    chatId = ChatId.fromId(chatId),
-                    text = "Введите название рецепта для поиска:",
-                    replyMarkup = createBackToMenuKeyboard()
-                )
+            2 -> {
+                currentRecipe?.ingredients?.addAll(text.split(",").map { it.trim() })
+                step++
+                bot.sendMessage(ChatId.fromId(chatId), "Введите шаги приготовления (каждый шаг с новой строки):")
             }
-
-            text.startsWith("3. Добавление нового рецепта") -> {
-                isAddingRecipe = true
-                bot.sendMessage(
-                    chatId = ChatId.fromId(chatId),
-                    text = "Введите название рецепта:",
-                    replyMarkup = createBackToMenuKeyboard()
-                )
+            3 -> {
+                currentRecipe?.instructions?.addAll(text.split("\n").map { it.trim() })
+                step++
+                bot.sendMessage(ChatId.fromId(chatId), "Отправьте фото рецепта (или напишите 'Пропустить'):")
             }
-
-            text.startsWith("4. Изменить рецепт") -> {
-                isEditingRecipe = true
-                bot.sendMessage(
-                    chatId = ChatId.fromId(chatId),
-                    text = "Введите название рецепта, который вы хотите изменить:",
-                    replyMarkup = createBackToMenuKeyboard()
-                )
+            4 -> {
+                if (text.lowercase() != "пропустить") {
+                    currentRecipe?.imageUrl = text
+                }
+                RecipeStorage.addRecipe(currentRecipe!!)
+                bot.sendMessage(ChatId.fromId(chatId), "Рецепт успешно добавлен!", replyMarkup = createBackToMenuKeyboard())
+                resetState()
             }
+        }
+    }
 
-            text == "Назад в меню" -> {
-                // Сброс всех флагов при выходе в главное меню
-                resetRecipeData()
-                showMainMenu(bot, chatId)
+    private fun handleRecipeEditing(bot: Bot, chatId: Long, text: String) {
+        if (currentRecipe == null) {
+            currentRecipe = RecipeStorage.getRecipeByName(text)
+            if (currentRecipe == null) {
+                bot.sendMessage(ChatId.fromId(chatId), "Рецепт не найден.")
+                return
             }
-
-            // Обработка названия рецепта
-            else -> {
-                val recipe = RecipeStorage.getRecipeByName(text)
-                if (recipe != null) {
-                    bot.sendMessage(
-                        chatId = ChatId.fromId(chatId),
-                        text = """
-                        Рецепт найден:
-                        Название: ${recipe.name}
-                        Ингредиенты: ${recipe.ingredients.joinToString(", ")}
-                        Шаги: ${recipe.instructions.joinToString("\n")}
-                        ${recipe.imageUrl ?: "Изображение отсутствует"}
-                    """.trimIndent(),
-                        replyMarkup = createBackToMenuKeyboard()
-                    )
-                } else {
-                    bot.sendMessage(
-                        chatId = ChatId.fromId(chatId),
-                        text = "Рецепт с таким названием не найден.",
-                        replyMarkup = createBackToMenuKeyboard()
-                    )
+            bot.sendMessage(ChatId.fromId(chatId), "Введите новые ингредиенты (через запятую):")
+            step = 1
+        } else {
+            when (step) {
+                1 -> {
+                    currentRecipe!!.ingredients = text.split(",").map { it.trim() }.toMutableList()
+                    step++
+                    bot.sendMessage(ChatId.fromId(chatId), "Введите новые шаги приготовления (каждый шаг с новой строки):")
+                }
+                2 -> {
+                    currentRecipe!!.instructions = text.split("\n").map { it.trim() }.toMutableList()
+                    step++
+                    bot.sendMessage(ChatId.fromId(chatId), "Отправьте новую ссылку на изображение (или напишите 'Пропустить'):")
+                }
+                3 -> {
+                    if (text.lowercase() != "пропустить") {
+                        currentRecipe!!.imageUrl = text
+                    }
+                    RecipeStorage.updateRecipe(currentRecipe!!)
+                    bot.sendMessage(ChatId.fromId(chatId), "Рецепт успешно обновлен!", replyMarkup = createBackToMenuKeyboard())
+                    resetState()
                 }
             }
         }
     }
 
-    // Функция для отображения рецепта с кнопкой "Изменить"
-    private fun showRecipeDetailsWithEditOption(bot: Bot, chatId: Long, recipe: Recipe) {
-        val recipeDetails = buildString {
-            append("Рецепт: ${recipe.name}\n")
-            append("Ингредиенты:\n")
-            recipe.ingredients.forEach { ingredient ->
-                append("- $ingredient\n")
-            }
-            append("Шаги приготовления:\n")
-            recipe.instructions.forEach { step ->
-                append("$step\n")
-            }
-            if (recipe.imageUrl != null) {
-                append("Изображение рецепта: ${recipe.imageUrl}")
-            } else {
-                append("Изображение не загружено.")
-            }
+    private fun showRecipeDetails(bot: Bot, chatId: Long, recipeName: String) {
+        val recipe = RecipeStorage.getRecipeByName(recipeName)
+        if (recipe == null) {
+            bot.sendMessage(ChatId.fromId(chatId), "Рецепт не найден.")
+            return
         }
 
-        val editButton = KeyboardButton("Изменить")
-        val keyboardMarkup = KeyboardReplyMarkup(
-            keyboard = listOf(listOf(editButton)),
-            resizeKeyboard = true
-        )
+        val recipeDetails = buildString {
+            append("📌 *${recipe.name}*\n\n")
+            append("🍽 *Ингредиенты:*\n")
+            recipe.ingredients.forEach { append("- $it\n") }
+            append("\n📖 *Шаги приготовления:*\n")
+            recipe.instructions.forEachIndexed { index, step -> append("${index + 1}. $step\n") }
+            if (recipe.imageUrl != null) append("\n🖼 [Изображение](${recipe.imageUrl})")
+        }
 
         bot.sendMessage(
             chatId = ChatId.fromId(chatId),
             text = recipeDetails,
-            replyMarkup = keyboardMarkup
+            parseMode = ParseMode.MARKDOWN,
+            replyMarkup = createBackToMenuKeyboard()
         )
     }
 
-    // Функция для изменения рецепта
-    private fun handleRecipeEdit(bot: Bot, chatId: Long, text: String) {
-        currentEditingRecipe?.let { recipe ->
-            when {
-                recipe.ingredients.isEmpty() -> {
-                    recipe.ingredients.addAll(text.split(","))
-                    bot.sendMessage(
-                        chatId = ChatId.fromId(chatId),
-                        text = "Введите шаги приготовления рецепта (все в одном сообщении, разделённые новым абзацем):"
-                    )
-                }
-                recipe.instructions.isEmpty() -> {
-                    recipe.instructions.addAll(text.split("\n"))
-                    bot.sendMessage(
-                        chatId = ChatId.fromId(chatId),
-                        text = "Загрузите изображение для рецепта (отправьте фото)."
-                    )
-                }
-                recipe.imageUrl == null -> {
-                    // Здесь будет обработка загрузки изображения
-                    bot.sendMessage(
-                        chatId = ChatId.fromId(chatId),
-                        text = "Ваш рецепт обновлён! Нажмите кнопку 'Сохранить', чтобы завершить."
-                    )
-
-                    // Обновляем рецепт в хранилище
-                    RecipeStorage.updateRecipe(recipe)
-
-                    // Сброс данных после редактирования
-                    resetRecipeData()
-                }
-                else -> {
-                    // Этот блок можно использовать, если какие-то неожиданные состояния попадут
-                    bot.sendMessage(
-                        chatId = ChatId.fromId(chatId),
-                        text = "Что-то пошло не так. Пожалуйста, попробуйте снова.",
-                        replyMarkup = createBackToMenuKeyboard()
-                    )
-                }
-            }
-        } ?: run {
-            // Если рецепт не найден
-            bot.sendMessage(
-                chatId = ChatId.fromId(chatId),
-                text = "Ошибка: Рецепт не найден. Пожалуйста, попробуйте снова.",
-                replyMarkup = createBackToMenuKeyboard()
-            )
-        }
-    }
-
-
-    // Обработка ввода рецепта
-    private fun handleRecipeInput(bot: Bot, chatId: Long, text: String) {
-        when {
-            currentRecipeName == null -> {
-                currentRecipeName = text
-                bot.sendMessage(
-                    chatId = ChatId.fromId(chatId),
-                    text = "Введите ингредиенты рецепта, разделённые запятыми:"
-                )
-            }
-            currentRecipeIngredients.isEmpty() -> {
-                currentRecipeIngredients.addAll(text.split(","))
-                bot.sendMessage(
-                    chatId = ChatId.fromId(chatId),
-                    text = "Введите шаги приготовления рецепта (все в одном сообщении, разделённые новым абзацем):"
-                )
-            }
-            currentRecipeInstructions.isEmpty() -> {
-                currentRecipeInstructions.addAll(text.split(","))
-                bot.sendMessage(
-                    chatId = ChatId.fromId(chatId),
-                    text = "Загрузите изображение для рецепта (отправьте фото)."
-                )
-            }
-            currentRecipeImageUrl == null -> {
-                // Здесь можно обработать загрузку изображения
-                bot.sendMessage(
-                    chatId = ChatId.fromId(chatId),
-                    text = "Ваш рецепт добавлен!"
-                )
-
-                // Сохраняем рецепт в хранилище
-                val recipe = Recipe(
-                    name = currentRecipeName!!,
-                    ingredients = currentRecipeIngredients,
-                    instructions = currentRecipeInstructions,
-                    imageUrl = currentRecipeImageUrl
-                )
-                RecipeStorage.addRecipe(recipe)
-
-                // Сброс данных после добавления рецепта
-                resetRecipeData()
-            }
-        }
-    }
-
-    private fun resetRecipeData() {
-        // Сброс всех данных о рецептах, чтобы очистить состояние
+    private fun resetState() {
         isAddingRecipe = false
         isEditingRecipe = false
-        currentRecipeName = null
-        currentRecipeIngredients.clear()
-        currentRecipeInstructions.clear()
-        currentRecipeImageUrl = null
-        currentEditingRecipe = null
+        currentRecipe = null
+        step = 0
     }
 
     private fun createBackToMenuKeyboard(): KeyboardReplyMarkup {
-        val backButton = KeyboardButton("Назад в меню")
         return KeyboardReplyMarkup(
-            keyboard = listOf(listOf(backButton)),
+            keyboard = listOf(listOf(KeyboardButton("Назад в меню"))),
             resizeKeyboard = true
         )
     }
